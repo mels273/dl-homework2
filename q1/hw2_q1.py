@@ -21,7 +21,7 @@ from sklearn.metrics import accuracy_score
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
+batch_size = 64
 
 # Data Loading
 
@@ -47,6 +47,20 @@ total_start = time.time()
 def train_epoch(loader, model, criterion, optimizer):
     
     ### YOUR CODE HERE ###
+    model.train()
+    total_loss = 0.0
+    for imgs, labels in loader:
+        imgs = imgs.to(device)
+        labels = labels.squeeze().long().to(device)
+
+        optimizer.zero_grad()
+        outputs = model(imgs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
+
 
     return total_loss / len(loader)
 
@@ -88,9 +102,53 @@ test_loader  = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 # get a loss criterion
 
 ### YOUR CODE HERE ###
+class CNNModel(nn.Module):
+    def __init__(self, in_channels, num_classes, input_hw: tuple[int, int]):
+        super().__init__()
+        H, W = input_hw
+        self.conv1 = nn.Conv2d(in_channels, 32, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
+
+        self.relu = nn.ReLU(inplace=True)
+
+        in_features_fc1 = 64 * H * W  # as requested: channels * width * height (from second block)
+
+        # --- Fully connected layers ---
+        self.fc1 = nn.Linear(in_features_fc1, 256)
+        self.fc2 = nn.Linear(256, num_classes)
+        
+
+    def forward(self, x, apply_softmax=False):
+        x = self.relu(self.conv1(x))
+
+        # Block 2
+        x = self.relu(self.conv2(x))
+        x_second = x  # (N, 64, H, W) - used conceptually for the fc input size
+
+        # Block 3
+        x = self.relu(self.conv3(x))
+
+        # Flatten using the SECOND block size requirement:
+        # We ignore block3's channels for the FC input on purpose because the prompt asks so.
+        # So: flatten x_second, not x.
+        x = torch.flatten(x_second, start_dim=1)  # (N, 64*H*W)
+
+        # FCs
+        x = self.relu(self.fc1(x))
+        logits = self.fc2(x)
+
+        if apply_softmax:
+            return F.softmax(logits, dim=1)  # probabilities
+        return logits  # raw scores (logits)
 
 # training loop
 ### you can use the code below or implement your own loop ###
+
+model = CNNModel(in_channels=3, num_classes=n_classes, input_hw=(28, 28)).to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+epochs = 200
 train_losses = []
 val_accs = []
 test_accs = []
