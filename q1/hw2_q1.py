@@ -66,7 +66,7 @@ def train_epoch(loader, model, criterion, optimizer):
 
 #Evaluation Function
 
-def evaluate(loader, model):
+def evaluate(loader, model, apply_softmax=False):
     model.eval()
     preds, targets = [], []
 
@@ -75,7 +75,7 @@ def evaluate(loader, model):
             imgs = imgs.to(device)
             labels = labels.squeeze().long()
 
-            outputs = model(imgs)
+            outputs = model(imgs, apply_softmax=apply_softmax)
             preds += outputs.argmax(dim=1).cpu().tolist()
             targets += labels.tolist()
 
@@ -83,10 +83,11 @@ def evaluate(loader, model):
 
 
 def plot(epochs, plottable, ylabel='', name=''):
+    print(plottable)
     plt.clf()
     plt.xlabel('Epoch')
     plt.ylabel(ylabel)
-    plt.plot(epochs, plottable)
+    plt.plot(range(epochs), plottable)
     plt.savefig('%s.pdf' % (name), bbox_inches='tight')
 
 train_dataset = BloodMNIST(split='train', transform=transform, download=True, size=28)
@@ -152,13 +153,16 @@ epochs = 200
 train_losses = []
 val_accs = []
 test_accs = []
+softmax_accs = []
+epochs_without_improvement = 0
+best_val_acc = 0.0
 for epoch in range(epochs):
 
     epoch_start = time.time()
 
     train_loss = train_epoch(train_loader, model, criterion, optimizer)
-    val_acc = evaluate(val_loader, model)
-    print(f"Epoch {epoch+1}/{epochs} | Loss: {train_loss:.4f} | Val Acc: {val_acc:.4f}")
+    val_acc = evaluate(val_loader, model, apply_softmax=True)
+    print(f"Epoch {epoch+1}/{epochs} | Loss: {train_loss:.4f} | Val Acc: {val_acc:.4f} ")
 
     train_losses.append(train_loss)
     val_accs.append(val_acc)
@@ -169,16 +173,29 @@ for epoch in range(epochs):
     print(f"Epoch {epoch+1}/{epochs} | "
           f"Loss: {train_loss:.4f} | Val Acc: {val_acc:.4f} | "
           f"Time: {epoch_time:.2f} sec")
+    
+    #Test Accuracy
+    test_acc = evaluate(test_loader, model)
+    print("Test Accuracy:", test_acc)
+    test_accs.append(test_acc)
+    
+    # Early Stopping
+    # if val_acc > best_val_acc:
+    #     best_val_acc = val_acc
+    #     epochs_without_improvement = 0
+    # else:
+    #     epochs_without_improvement += 1
 
-#Test Accuracy
-test_acc = evaluate(test_loader, model)
-print("Test Accuracy:", test_acc)
-test_accs.append(test_acc)
+    # if epochs_without_improvement >= 5:
+    #     print("Early stopping triggered.")
+    #     break
+
+
 
 
 #Save the model
-#torch.save(model.state_dict(), "bloodmnist_cnn.pth")
-#print("Model saved as bloodmnist_cnn.pth")
+torch.save(model.state_dict(), "bloodmnist_cnn-with-softmax.pth")
+print("Model saved as bloodmnist_cnn.pth")
 
 
 # --------- After Training ----------
@@ -193,6 +210,7 @@ print(f"\nTotal training time: {total_time/60:.2f} minutes "
 #config = "{}-{}-{}-{}-{}".format(opt.learning_rate, opt.optimizer, opt.no_maxpool, opt.no_softmax,)
 config = "{}".format(str(0.1))
 
-plot(epochs, train_losses, ylabel='Loss', name='CNN-training-loss-{}'.format(config))
-plot(epochs, val_accs, ylabel='Accuracy', name='CNN-validation-accuracy-{}'.format(config))
-plot(epochs, test_accs, ylabel='Accuracy', name='CNN-test-accuracy-{}'.format(config))
+
+plot(epochs, train_losses, ylabel='Loss', name='CNN-training-loss-with-softmax{}'.format(config))
+plot(epochs, val_accs, ylabel='Accuracy', name='CNN-validation-accuracy-with-softmax-{}'.format(config))
+plot(epochs, test_accs, ylabel='Accuracy', name='CNN-test-accuracy-with-softmax-{}'.format(config))
