@@ -112,28 +112,30 @@ class CNNModel(nn.Module):
         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
 
         self.relu = nn.ReLU(inplace=True)
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        in_features_fc1 = 64 * H * W  # as requested: channels * width * height (from second block)
+        # Calculate correct dimensions after pooling
+        # Input: (H, W) = (28, 28)
+        # After conv1 + pool: (14, 14)
+        # After conv2 + pool: (7, 7)  
+        # After conv3 + pool: (3, 3)
+        conv_output_size = 128 * (H // 8) * (W // 8)  # 128 channels, spatial dims reduced by 8 (2^3 from 3 pools)
 
         # --- Fully connected layers ---
-        self.fc1 = nn.Linear(in_features_fc1, 256)
+        self.fc1 = nn.Linear(conv_output_size, 256)
         self.fc2 = nn.Linear(256, num_classes)
         
 
     def forward(self, x, apply_softmax=False):
-        x = self.relu(self.conv1(x))
+        x = self.pool(self.relu(self.conv1(x)))
 
         # Block 2
-        x = self.relu(self.conv2(x))
-        x_second = x  # (N, 64, H, W) - used conceptually for the fc input size
+        x = self.pool(self.relu(self.conv2(x)))
+       
 
         # Block 3
-        x = self.relu(self.conv3(x))
-
-        # Flatten using the SECOND block size requirement:
-        # We ignore block3's channels for the FC input on purpose because the prompt asks so.
-        # So: flatten x_second, not x.
-        x = torch.flatten(x_second, start_dim=1)  # (N, 64*H*W)
+        x = self.pool(self.relu(self.conv3(x)))
+        x = torch.flatten(x, start_dim=1)  # (N, 128*3*3) = (N, 1152)
 
         # FCs
         x = self.relu(self.fc1(x))
@@ -194,7 +196,7 @@ for epoch in range(epochs):
 
 
 #Save the model
-torch.save(model.state_dict(), "bloodmnist_cnn-with-softmax.pth")
+torch.save(model.state_dict(), "bloodmnist_cnn-with-softmax-and-pooling.pth")
 print("Model saved as bloodmnist_cnn.pth")
 
 
@@ -211,6 +213,6 @@ print(f"\nTotal training time: {total_time/60:.2f} minutes "
 config = "{}".format(str(0.1))
 
 
-plot(epochs, train_losses, ylabel='Loss', name='CNN-training-loss-with-softmax{}'.format(config))
-plot(epochs, val_accs, ylabel='Accuracy', name='CNN-validation-accuracy-with-softmax-{}'.format(config))
-plot(epochs, test_accs, ylabel='Accuracy', name='CNN-test-accuracy-with-softmax-{}'.format(config))
+plot(epochs, train_losses, ylabel='Loss', name='CNN-training-loss-with-softmax-and-pooling{}'.format(config))
+plot(epochs, val_accs, ylabel='Accuracy', name='CNN-validation-accuracy-with-softmax-and-pooling-{}'.format(config))
+plot(epochs, test_accs, ylabel='Accuracy', name='CNN-test-accuracy-with-softmax-and-pooling-{}'.format(config))
