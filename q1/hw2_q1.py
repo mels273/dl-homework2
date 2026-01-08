@@ -114,14 +114,9 @@ class CNNModel(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        # Calculate correct dimensions after pooling
-        # Input: (H, W) = (28, 28)
-        # After conv1 + pool: (14, 14)
-        # After conv2 + pool: (7, 7)  
-        # After conv3 + pool: (3, 3)
         conv_output_size = 128 * (H // 8) * (W // 8)  # 128 channels, spatial dims reduced by 8 (2^3 from 3 pools)
 
-        # --- Fully connected layers ---
+        
         self.fc1 = nn.Linear(conv_output_size, 256)
         self.fc2 = nn.Linear(256, num_classes)
         
